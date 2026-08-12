@@ -1,0 +1,14 @@
+{
+  "name": "logo-ai-site-test",
+  "version": "1.0.0",
+  "description": "Site para venda de logos com chat de IA integrado (OpenAI) - sem dependências externas",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {}
+}
