@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LogoAI — Crie e compre o logo perfeito com ajuda de IA</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">◆</span>
+      <span class="brand-name">LogoAI</span>
+    </div>
+    <nav class="topnav">
+      <a href="#modelos">Modelos</a>
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#chat">Criar com IA</a>
+    </nav>
+  </header>
+
+  <div id="demoBanner" class="demo-banner hidden">
+    Modo demonstração — configure sua <code>OPENAI_API_KEY</code> no arquivo <code>.env</code> para respostas reais da IA.
+  </div>
+
+  <main>
+    <section class="hero" id="chat">
+      <h1 class="hero-title">Qual logo vamos criar hoje?</h1>
+      <p class="hero-subtitle">Converse com a nossa IA, descreva seu negócio e receba recomendações de estilo na hora.</p>
+
+      <div class="chat-card">
+        <div id="chatMessages" class="chat-messages"></div>
+
+        <form id="chatForm" class="chat-inputbar">
+          <textarea
+            id="chatInput"
+            class="chat-textarea"
+            placeholder="Descreva o logo que você quer (ex: uma padaria artesanal, cores quentes, estilo rústico)..."
+            rows="1"
+            required
+          ></textarea>
+
+          <div class="chat-toolbar">
+            <button type="button" class="icon-btn" title="Anexar referência (em breve)">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+
+            <div class="style-select">
+              <select id="styleSelect">
+                <option value="Automático">Estilo: Automático</option>
+                <option value="Minimalista">Minimalista</option>
+                <option value="Moderno">Moderno</option>
+                <option value="Tech">Tech</option>
+                <option value="Vintage">Vintage</option>
+                <option value="Luxo">Luxo</option>
+                <option value="Divertido">Divertido</option>
+              </select>
+            </div>
+
+            <button type="button" class="icon-btn" title="Falar (em breve)">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4"/></svg>
+            </button>
+
+            <button type="button" id="generateImgBtn" class="generate-btn" title="Gerar imagem do logo com IA">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              Gerar imagem
+            </button>
+
+            <button type="submit" class="send-btn" id="sendBtn" title="Enviar">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="models" id="modelos">
+      <h2 class="section-title">Modelos prontos para comprar</h2>
+      <p class="section-subtitle">Escolha um estilo de base — depois personalizamos com você pelo chat.</p>
+
+      <div id="modelsGrid" class="models-grid"></div>
+    </section>
+
+    <section class="how" id="como-funciona">
+      <h2 class="section-title">Como funciona</h2>
+      <div class="how-grid">
+        <div class="how-card">
+          <span class="how-num">1</span>
+          <h3>Converse com a IA</h3>
+          <p>Descreva seu negócio, estilo e cores preferidas no chat acima.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num">2</span>
+          <h3>Escolha um modelo</h3>
+          <p>Receba recomendações e escolha um dos modelos da nossa galeria.</p>
+        </div>
+        <div class="how-card">
+          <span class="how-num">3</span>
+          <h3>Compre e personalize</h3>
+          <p>Finalize a compra e receba os arquivos do seu logo prontos para uso.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© 2026 LogoAI. Protótipo de site — integração com a API da OpenAI.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
