@@ -32,17 +32,20 @@
       <div class="chat-card">
         <div id="chatMessages" class="chat-messages"></div>
 
+        <div id="attachmentsPreview" class="attachments-preview"></div>
+
         <form id="chatForm" class="chat-inputbar">
+          <input type="file" id="fileInput" accept="*/*" multiple hidden />
+
           <textarea
             id="chatInput"
             class="chat-textarea"
             placeholder="Descreva o logo que você quer (ex: uma padaria artesanal, cores quentes, estilo rústico)..."
             rows="1"
-            required
           ></textarea>
 
           <div class="chat-toolbar">
-            <button type="button" class="icon-btn" title="Anexar referência (em breve)">
+            <button type="button" id="attachBtn" class="icon-btn" title="Anexar arquivo (imagem, PDF, texto...)">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             </button>
 
@@ -108,6 +111,8 @@
     <p>© 2026 LogoAI. Protótipo de site — integração com a API da OpenAI.</p>
   </footer>
 
+  <!-- pdf.js: usado para extrair texto de PDFs anexados no chat -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
