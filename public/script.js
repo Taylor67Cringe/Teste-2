@@ -75,4 +75,344 @@ function renderModels() {
 // ---------- Anexos (imagem, PDF, texto, qualquer arquivo) ----------
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
-    'https://cdnjs.cloudflare.com/ajax
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+const fileInput = document.getElementById('fileInput');
+const attachBtn = document.getElementById('attachBtn');
+const attachmentsPreview = document.getElementById('attachmentsPreview');
+
+const MAX_TOTAL_ATTACHMENT_BYTES = 15 * 1024 * 1024; // 15MB no total
+let attachments = []; // { id, name, kind: 'image'|'pdf'|'text'|'unsupported', dataUrl?, textContent?, size }
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function fileToText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsText(file);
+  });
+}
+
+async function extractPdfText(file) {
+  if (!window.pdfjsLib) return '';
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  let text = '';
+  const maxPages = Math.min(pdf.numPages, 15); // limite de segurança
+  for (let i = 1; i <= maxPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map((it) => it.str).join(' ') + '\n';
+  }
+  return text.trim();
+}
+
+function currentAttachmentsBytes() {
+  return attachments.reduce((sum, a) => sum + (a.size || 0), 0);
+}
+
+function renderAttachments() {
+  attachmentsPreview.innerHTML = '';
+  attachments.forEach((a) => {
+    const chip = document.createElement('div');
+    chip.className = 'attachment-chip';
+
+    if (a.kind === 'image') {
+      const img = document.createElement('img');
+      img.src = a.dataUrl;
+      chip.appendChild(img);
+    } else {
+      const icon = document.createElement('div');
+      icon.className = 'file-icon';
+      icon.textContent = a.kind === 'pdf' ? '📄' : a.kind === 'text' ? '📝' : '📎';
+      chip.appendChild(icon);
+    }
+
+    const name = document.createElement('span');
+    name.className = 'file-name';
+    name.textContent = a.name;
+    chip.appendChild(name);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'remove-chip';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+      attachments = attachments.filter((x) => x.id !== a.id);
+      renderAttachments();
+    });
+    chip.appendChild(removeBtn);
+
+    attachmentsPreview.appendChild(chip);
+  });
+}
+
+attachBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', async () => {
+  const files = Array.from(fileInput.files || []);
+  fileInput.value = ''; // permite selecionar o mesmo arquivo de novo depois
+
+  for (const file of files) {
+    if (currentAttachmentsBytes() + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+      alert(`"${file.name}" não foi anexado — limite total de 15MB de anexos por mensagem.`);
+      continue;
+    }
+
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    try {
+      if (file.type.startsWith('image/')) {
+        const dataUrl = await fileToDataUrl(file);
+        attachments.push({ id, name: file.name, kind: 'image', dataUrl, size: file.size });
+      } else if (file.type === 'application/pdf') {
+        const textContent = await extractPdfText(file);
+        attachments.push({
+          id,
+          name: file.name,
+          kind: 'pdf',
+          textContent: textContent || '(não foi possível extrair texto deste PDF — pode ser um PDF escaneado/imagem)',
+          size: file.size,
+        });
+      } else if (file.type.startsWith('text/') || file.type === 'application/json') {
+        const textContent = await fileToText(file);
+        attachments.push({ id, name: file.name, kind: 'text', textContent, size: file.size });
+      } else {
+        // Qualquer outro formato (ex: .cdr, .docx, .zip...) — aceito, mas sem leitura de conteúdo
+        attachments.push({
+          id,
+          name: file.name,
+          kind: 'unsupported',
+          textContent: `(arquivo "${file.name}" anexado, mas este formato não pode ser lido pela IA — descreva o conteúdo se for relevante)`,
+          size: file.size,
+        });
+      }
+    } catch (err) {
+      alert(`Não foi possível processar "${file.name}".`);
+    }
+
+    renderAttachments();
+  }
+});
+
+// ---------- Chat ----------
+const chatForm = document.getElementById('chatForm');
+const chatInput = document.getElementById('chatInput');
+const chatMessages = document.getElementById('chatMessages');
+const sendBtn = document.getElementById('sendBtn');
+const styleSelect = document.getElementById('styleSelect');
+const demoBanner = document.getElementById('demoBanner');
+
+let history = [];
+
+function addMessage(role, text, attachedNames) {
+  const wrap = document.createElement('div');
+  wrap.className = `msg ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = text;
+
+  if (attachedNames && attachedNames.length) {
+    const names = document.createElement('div');
+    names.style.marginTop = '6px';
+    names.style.fontSize = '12px';
+    names.style.opacity = '0.75';
+    names.textContent = '📎 ' + attachedNames.join(', ');
+    bubble.appendChild(names);
+  }
+
+  wrap.appendChild(bubble);
+  chatMessages.appendChild(wrap);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
+}
+
+// Monta o "content" no formato multi-parte da OpenAI (texto + imagens),
+// juntando também o texto extraído de PDFs/arquivos de texto anexados.
+function buildMessageContent(text) {
+  const textParts = [text];
+  const imageParts = [];
+
+  attachments.forEach((a) => {
+    if (a.kind === 'image') {
+      imageParts.push({ type: 'image_url', image_url: { url: a.dataUrl } });
+    } else if (a.textContent) {
+      textParts.push(`\n\n[Conteúdo do arquivo anexado "${a.name}"]:\n${a.textContent.slice(0, 6000)}`);
+    }
+  });
+
+  if (imageParts.length === 0) {
+    return textParts.join('');
+  }
+
+  return [{ type: 'text', text: textParts.join('') }, ...imageParts];
+}
+
+function addLoadingBubble() {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg assistant';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble loading';
+  bubble.textContent = 'Digitando...';
+  wrap.appendChild(bubble);
+  chatMessages.appendChild(wrap);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return wrap;
+}
+
+async function sendMessage(text) {
+  const attachedNames = attachments.map((a) => a.name);
+  const content = buildMessageContent(text);
+
+  addMessage('user', text, attachedNames);
+  history.push({ role: 'user', content });
+
+  attachments = [];
+  renderAttachments();
+
+  sendBtn.disabled = true;
+  const loadingWrap = addLoadingBubble();
+
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history }),
+    });
+    const data = await res.json();
+    loadingWrap.remove();
+
+    if (!res.ok) {
+      addMessage('assistant', data.error || 'Ocorreu um erro. Tente novamente.');
+      return;
+    }
+
+    addMessage('assistant', data.reply);
+    history.push({ role: 'assistant', content: data.reply });
+  } catch (err) {
+    loadingWrap.remove();
+    addMessage('assistant', 'Não foi possível conectar ao servidor. Verifique se ele está rodando.');
+  } finally {
+    sendBtn.disabled = false;
+  }
+}
+
+chatForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const text = chatInput.value.trim();
+  if (!text && attachments.length === 0) return;
+
+  const style = styleSelect.value;
+  const fullText = style && style !== 'Automático' ? `${text} (estilo preferido: ${style})` : text;
+
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+  sendMessage(fullText);
+});
+
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    chatForm.requestSubmit();
+  }
+});
+
+chatInput.addEventListener('input', () => {
+  chatInput.style.height = 'auto';
+  chatInput.style.height = Math.min(chatInput.scrollHeight, 160) + 'px';
+});
+
+// ---------- Geração de imagem ----------
+const generateImgBtn = document.getElementById('generateImgBtn');
+
+function addImageMessage(imageUrl) {
+  const wrap = document.createElement('div');
+  wrap.className = 'msg assistant';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  const img = document.createElement('img');
+  img.src = imageUrl;
+  img.alt = 'Logo gerado por IA';
+  bubble.appendChild(img);
+
+  const link = document.createElement('a');
+  link.href = imageUrl;
+  link.download = 'logo-gerado.png';
+  link.className = 'img-download';
+  link.textContent = 'Baixar imagem';
+  bubble.appendChild(document.createElement('br'));
+  bubble.appendChild(link);
+
+  wrap.appendChild(bubble);
+  chatMessages.appendChild(wrap);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+async function generateImage() {
+  const description = chatInput.value.trim() || history.filter((m) => m.role === 'user').slice(-1)[0]?.content;
+
+  if (!description) {
+    addMessage('assistant', 'Descreva o logo que você quer no campo de texto antes de gerar a imagem.');
+    return;
+  }
+
+  const style = styleSelect.value;
+  addMessage('user', `[Gerar imagem] ${description}${style !== 'Automático' ? ' — estilo: ' + style : ''}`);
+  chatInput.value = '';
+  chatInput.style.height = 'auto';
+
+  generateImgBtn.disabled = true;
+  sendBtn.disabled = true;
+  const loadingWrap = addLoadingBubble();
+  loadingWrap.querySelector('.msg-bubble').textContent = 'Gerando imagem, isso pode levar alguns segundos...';
+
+  try {
+    const res = await fetch('/api/generate-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description, style }),
+    });
+    const data = await res.json();
+    loadingWrap.remove();
+
+    if (!res.ok) {
+      addMessage('assistant', data.error || 'Não foi possível gerar a imagem.');
+      return;
+    }
+
+    addImageMessage(data.imageUrl);
+  } catch (err) {
+    loadingWrap.remove();
+    addMessage('assistant', 'Não foi possível conectar ao servidor para gerar a imagem.');
+  } finally {
+    generateImgBtn.disabled = false;
+    sendBtn.disabled = false;
+  }
+}
+
+generateImgBtn.addEventListener('click', generateImage);
+
+// ---------- Status (modo demo) ----------
+async function checkStatus() {
+  try {
+    const res = await fetch('/api/status');
+    const data = await res.json();
+    if (data.demoMode) demoBanner.classList.remove('hidden');
+  } catch (err) {
+    // silencioso
+  }
+}
+
+renderModels();
+checkStatus();
