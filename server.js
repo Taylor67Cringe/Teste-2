@@ -65,16 +65,37 @@ function sendJSON(res, statusCode, data) {
   res.end(body);
 }
 
+const MAX_BODY_BYTES = 20 * 1024 * 1024; // 20MB — dá espaço pra imagens/PDFs anexados em base64
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     let data = '';
+    let bytes = 0;
     req.on('data', (chunk) => {
+      bytes += chunk.length;
+      if (bytes > MAX_BODY_BYTES) {
+        req.destroy();
+        return;
+      }
       data += chunk;
-      if (data.length > 1e6) req.destroy(); // limite de 1MB
     });
     req.on('end', () => resolve(data));
     req.on('error', reject);
   });
+}
+
+// O conteúdo de uma mensagem pode ser uma string simples ou (quando tem
+// anexos) um array de partes no formato multi-modal da OpenAI. Isso extrai
+// só o texto, pra usar no modo demo e em logs.
+function extractText(content) {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part) => part.type === 'text')
+      .map((part) => part.text)
+      .join(' ');
+  }
+  return '';
 }
 
 async function handleChat(req, res) {
@@ -85,7 +106,7 @@ async function handleChat(req, res) {
 
     if (DEMO_MODE) {
       const lastUser = [...messages].reverse().find((m) => m.role === 'user');
-      const userText = lastUser ? lastUser.content : '';
+      const userText = lastUser ? extractText(lastUser.content) : '';
       const reply =
         `(Modo demo — configure OPENAI_API_KEY no .env para respostas reais da OpenAI)\n\n` +
         `Entendi: "${userText}". Com base nisso, um estilo Moderno ou Minimalista combinaria bem. ` +
